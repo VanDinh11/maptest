@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
         integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
         crossorigin="" />
+
     <!-- Make sure you put this AFTER Leaflet's CSS -->
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
         integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
@@ -16,31 +17,135 @@
 
     <style>
         #mapid {
-            height: 500px;
+            height: 800px;
+        }
+        .address{
+            cursor: pointer;
+        }
+        .address:hover{
+            color: blue;
+            text-decoration: underline;
         }
     </style>
 </head>
 
 <body>
     <div id="mapid"></div>
+    <b>Coordinates</b>
+    <form>
+        <input type="text" name="lat" id="lat" size=12 value="">
+        <input type="text" name="lon" id="long" size=12 value="">
+    </form>
+
+    <b>Address Lookup</b>
+    <div id="search">
+        <input type="text" name="addr" value="" id="addr" size="58" />
+        <button type="button" id="start-search">Search</button>
+        <div id="results"></div>
+    </div>
 
     <script>
         const token = "pk.eyJ1IjoidmFuZGluaCIsImEiOiJja3M2eWZibzQwZmhyMm9ybms3cmJxaHU3In0.jbrO7V1iF6E8PvGMKbvgpw";
-        var mymap = L.map('mapid').setView([51.505, -0.09], 13);
-        var marker = L.marker([51.5, -0.09]).addTo(mymap);
-        // var map = L.map('mapid', {
-        //     center: [51.505, -0.09],
-        //     zoom: 13
-        // });
+        let long, lat;
 
-        // L.tileLayer(`https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=${token}`, {
-        //     attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
-        //     maxZoom: 18,
-        //     id: 'mapbox/streets-v11',
-        //     tileSize: 512,
-        //     zoomOffset: -1,
-        //     accessToken: token
-        // }).addTo(mymap);
+        navigator.geolocation.getCurrentPosition(function (position) {
+            lat = position.coords.latitude;
+            long = position.coords.longitude;
+
+            let mymap = L.map('mapid').setView([lat, long], 11);
+
+            L.tileLayer(`https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token=${token}`, {
+                attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+                maxZoom: 18,
+                id: 'mapbox/streets-v11',
+                tileSize: 512,
+                zoomOffset: -1,
+                accessToken: token
+            }).addTo(mymap);
+
+            let marker = L.marker([lat, long], { draggable: true }).addTo(mymap).on('dragend', function () {
+                let lat = marker.getLatLng().lat.toFixed(8);
+                let lon = marker.getLatLng().lng.toFixed(8);
+
+                document.getElementById('long').value = lon;
+                document.getElementById('lat').value = lat;
+
+                lonLatToAddress(lat, lon);
+            })
+
+            // L.DomEvent.on(document.getElementById('mapid'), 'click', function (ev) {
+            //     let posMouse = L.DomEvent.getMousePosition(ev);
+            //     console.log(marker.getLatLng());
+            // });
+
+            document.getElementById('start-search').addEventListener('click', addr_search);
+
+            function validateLatLng(lat, lng) {
+                let pattern = new RegExp('^-?([1-8]?[1-9]|[1-9]0)\\.{1}\\d{1,6}');
+
+                return pattern.test(lat) && pattern.test(lng);
+            }
+
+            function chooseAddr(lat1, lng1) {
+                marker.closePopup();
+                mymap.setView([lat1, lng1], 18);
+                marker.setLatLng([lat1, lng1]);
+                document.getElementById('lat').value = lat1;
+                document.getElementById('long').value = lng1;
+                marker.bindPopup("Lat " + lat1 + "<br />Lon " + lng1).openPopup();
+                return false;
+            }
+
+            function myFunction(arr) {
+                let out = "<br />";
+                let i;
+
+                if (arr.length > 0) {
+                    for (i = 0; i < arr.length; i++) {
+                        out += `<div class='address address-${i}' title='Show Location and Coordinates'>${arr[i].display_name}</div>`;
+                    }
+                    document.getElementById('results').innerHTML = out;
+                }
+                else {
+                    document.getElementById('results').innerHTML = "Sorry, no results...";
+                }
+
+                arr.map((e, i) => {
+                    document.getElementsByClassName(`address-${i}`)[0].addEventListener('click', () => chooseAddr(e.lat, e.lon));
+                })
+
+            }
+
+            function addr_search() {
+                let inp = document.getElementById("addr");
+                const limitResult = 10;
+                let xmlhttp = new XMLHttpRequest();
+                let url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=${limitResult}&q=${inp.value}`;
+                xmlhttp.onreadystatechange = function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        let myArr = JSON.parse(this.responseText);
+                        console.log(myArr);
+                        myFunction(myArr);
+                    }
+                };
+                xmlhttp.open("GET", url, true);
+                xmlhttp.send();
+            }
+
+            function lonLatToAddress(lat1, lng1) {
+                let xmlhttp = new XMLHttpRequest();
+                let url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat1}&lon=${lng1}`;
+                xmlhttp.onreadystatechange = function () {
+                    if (this.readyState == 4 && this.status == 200) {
+                        let result = JSON.parse(this.responseText);
+                        console.log(result);
+                    }
+                };
+                xmlhttp.open("GET", url, true);
+                xmlhttp.send();
+            }
+        });
+
 
     </script>
 </body>
