@@ -73,10 +73,13 @@
                 lonLatToAddress(lat, lon);
             })
 
-            // L.DomEvent.on(document.getElementById('mapid'), 'click', function (ev) {
-            //     let posMouse = L.DomEvent.getMousePosition(ev);
-            //     console.log(marker.getLatLng());
-            // });
+            mymap.on('click', function (ev) {
+                // let posMouse = L.DomEvent.getMousePosition(ev);
+                // console.log(marker.getLatLng());
+                console.log(ev.latlng);
+
+                var newMarker = new L.marker(ev.latlng).addTo(mymap);
+            });
 
             document.getElementById('start-search').addEventListener('click', addr_search);
 
